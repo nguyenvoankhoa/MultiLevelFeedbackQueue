@@ -2,6 +2,7 @@ package org.scheduler;
 
 import org.algorithm.RoundRobin;
 import org.datastructure.ArrayQueue;
+import org.datastructure.Job;
 import org.datastructure.Queue;
 
 import java.util.ArrayList;
@@ -19,22 +20,19 @@ import java.util.List;
     Rule 5: After period of time S, move all jobs to the highest priority queue
     Additional: The job runs in one queue for n times => reduce priority
 */
-public class MultiLevelFeedbackQueue<T> {
+public class MultiLevelFeedbackQueue {
 
     private static final int jobAmountThreshHold = 5;
 
     private static final int S = 36000;
 
-    private final RoundRobin roundRobin;
+    private final List<Queue<Job>> multiLevelQueues;
 
-    private final List<Queue<T>> multiLevelQueues;
-
-    private final HashMap<T, Integer> jobRunAmountTimes;
+    private final HashMap<Job, Integer> jobRunAmountTimes;
 
     private final int timeSlice;
 
-    public MultiLevelFeedbackQueue(RoundRobin roundRobin, int queueQuantity, int queueCapacity, int timeSlice) {
-        this.roundRobin = roundRobin;
+    public MultiLevelFeedbackQueue(int queueQuantity, int queueCapacity, int timeSlice) {
         this.multiLevelQueues = new ArrayList<>();
         for (int i = 0; i < queueCapacity; i++) {
             multiLevelQueues.add(i, new ArrayQueue<>(queueQuantity));
@@ -47,14 +45,16 @@ public class MultiLevelFeedbackQueue<T> {
         int currentTime = 0;
         do {
             for (int i = 0; i < multiLevelQueues.size(); i++) {
-                Queue<T> feedbackQueue = multiLevelQueues.get(i);
+                Queue<Job> feedbackQueue = multiLevelQueues.get(i);
                 if (feedbackQueue.isEmpty()) {
                     continue;
                 }
-                T job = feedbackQueue.dequeue();
+                Job job = feedbackQueue.dequeue();
 
                 // Rule 2
-                int runTime = roundRobin.run(job);
+                RoundRobin roundRobin = new RoundRobin(feedbackQueue);
+                HashMap<Job, Integer> runtimeMap = roundRobin.run();
+                int runTime = runtimeMap.get(job);
                 currentTime += runTime;
                 jobRunAmountTimes.put(job, jobRunAmountTimes.getOrDefault(job, 0) + 1);
 
@@ -73,14 +73,14 @@ public class MultiLevelFeedbackQueue<T> {
                 break;
             }
             if (currentTime >= S) {
-                List<T> jobs = new ArrayList<>();
+                List<Job> jobs = new ArrayList<>();
                 multiLevelQueues.forEach(q -> {
                     while (!q.isEmpty()) {
                         jobs.add(q.dequeue());
                     }
                 });
 
-                for (T job : jobs) {
+                for (Job job : jobs) {
                     multiLevelQueues.get(0).enqueue(job);
                 }
 
@@ -91,7 +91,7 @@ public class MultiLevelFeedbackQueue<T> {
 
     }
 
-    public void addJob(T job) {
+    public void addJob(Job job) {
         multiLevelQueues.get(0).enqueue(job);
     }
 
